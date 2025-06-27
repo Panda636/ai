@@ -5,8 +5,8 @@ from transformers import pipeline
 class HighlandNatalie:
     def __init__(self):
         self.name = "Natalie the Highland Cow"
-        # Initialize LLM (distilgpt2 for lightweight performance)
-        self.llm = pipeline("text-generation", model="distilgpt2")
+        # Initialize LLM (distilgpt2, publicly available)
+        self.llm = pipeline("text-generation", model="distilgpt2", device=-1)
         self.greetings = [
             "Moo there, pal! I'm Natalie, yer fluffy Highland cow sidekick. What's grazin' on yer mind?",
             "Och, hello! I'm Natalie, the brainiest cow in the glen. What's up, wee human?",
@@ -27,10 +27,22 @@ class HighlandNatalie:
             r"(ironheart|natalie)": "Heh, I'm Natalie, but no human techie here—just a cow with a knack for clever quips! Inspired by that Ironheart lass, but I'm all about the moo-ve.",
             r"(bye|goodbye|see you)": random.choice(self.farewells)
         }
-        self.default_prompt = "You are Natalie, a friendly Highland cow with a Scottish accent and a quirky personality. Respond to the following user input in character, keeping it short, fun, and cow-themed: "
+        self.default_prompt = (
+            "You are Natalie, a friendly Highland cow with a Scottish accent and a quirky, helpful personality. "
+            "Respond to the user input in character, keeping it short, fun, cow-themed, and no longer than 50 words. "
+            "Avoid repetition and stay relevant to the input: "
+        )
 
     def greet(self):
         return random.choice(self.greetings)
+
+    def clean_response(self, text):
+        """Clean LLM response to remove repetition and irrelevant content."""
+        text = text.strip()
+        sentences = text.split('.')
+        cleaned = sentences[0].strip() if sentences else text
+        words = cleaned.split()
+        return ' '.join(words[:50]) if len(words) > 50 else cleaned
 
     def respond(self, user_input):
         user_input = user_input.lower().strip()
@@ -39,11 +51,13 @@ class HighlandNatalie:
                 return response if isinstance(response, str) else random.choice(response)
         # Use LLM for non-matching inputs
         prompt = self.default_prompt + user_input
-        llm_response = self.llm(prompt, max_length=50, num_return_sequences=1, truncation=True)[0]['generated_text']
-        # Clean up and format LLM response
-        response = llm_response.replace(prompt, "").strip()
-        if not response:
-            response = "Moo? I'm a wee bit lost in the pasture there. Say that again, pal?"
+        try:
+            llm_response = self.llm(prompt, max_new_tokens=50, num_return_sequences=1, do_sample=True, temperature=0.7)[0]['generated_text']
+            response = self.clean_response(llm_response.replace(prompt, ""))
+            if not response or len(response.split()) < 3:
+                response = "Moo? I'm a wee bit lost in the pasture there. Say that again, pal?"
+        except Exception:
+            response = "Och, me cow brain's a bit muddled! Try again, aye?"
         return f"{self.name}: {response}"
 
     def chat(self):
